@@ -157,14 +157,8 @@ class AuthProvider extends ChangeNotifier {
 
   Future<bool> updateAvatar(String filePath) async {
     try {
-      final fileName = filePath.split('/').last;
-      final response = await _api.uploadFile(filePath, fileName);
-      final avatarPath = response.data['file_path'] as String;
-
-      final updateResponse = await _api.updateProfile();
-      final userData = updateResponse.data['user'] as Map<String, dynamic>;
-      userData['avatar_path'] = avatarPath;
-      _user = User.fromJson(userData);
+      final response = await _api.updateAvatar(filePath);
+      _user = User.fromJson(response.data['user'] as Map<String, dynamic>);
       notifyListeners();
       return true;
     } catch (e) {

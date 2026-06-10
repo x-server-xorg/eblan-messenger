@@ -213,7 +213,7 @@ class _ChatScreenState extends State<ChatScreen> {
                   : null,
               child: widget.avatarPath == null
                   ? Text(
-                      widget.username[1].toUpperCase(),
+                      (widget.username.startsWith('@') ? widget.username[1] : widget.username[0]).toUpperCase(),
                       style: TextStyle(
                         color: Theme.of(context).colorScheme.primary,
                         fontWeight: FontWeight.bold,

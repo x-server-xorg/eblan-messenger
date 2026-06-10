@@ -93,6 +93,14 @@ class ApiService {
     return _dio.post('/api/files/upload', data: formData);
   }
 
+  Future<Response> updateAvatar(String filePath) async {
+    final fileName = filePath.split('/').last;
+    final formData = FormData.fromMap({
+      'file': await MultipartFile.fromFile(filePath, filename: fileName),
+    });
+    return _dio.put('/api/users/me/avatar', data: formData);
+  }
+
   String getFileUrl(String path) {
     return 'http://$_baseUrl/api/files/$path';
   }

@@ -102,7 +102,7 @@ class _SearchScreenState extends State<SearchScreen> {
                                 : null,
                             child: user.avatarPath == null
                                 ? Text(
-                                    user.username[1].toUpperCase(),
+                                    (user.username.startsWith('@') ? user.username[1] : user.username[0]).toUpperCase(),
                                     style: TextStyle(
                                       color: Theme.of(context).colorScheme.primary,
                                       fontWeight: FontWeight.bold,

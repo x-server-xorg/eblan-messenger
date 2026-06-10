@@ -33,7 +33,7 @@ class ChatTile extends StatelessWidget {
             backgroundImage: avatarUrl != null ? NetworkImage(avatarUrl) : null,
             child: avatarUrl == null
                 ? Text(
-                    username[1].toUpperCase(),
+                    (username.startsWith('@') ? username[1] : username[0]).toUpperCase(),
                     style: TextStyle(
                       color: Theme.of(context).colorScheme.primary,
                       fontWeight: FontWeight.bold,

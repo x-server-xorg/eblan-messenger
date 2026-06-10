@@ -1,4 +1,6 @@
 import { Router, Request, Response } from 'express';
+import multer from 'multer';
+import { v4 as uuidv4 } from 'uuid';
 import db from '../db';
 import { authMiddleware } from '../middleware/auth';
 import fs from 'fs';
@@ -6,6 +8,25 @@ import path from 'path';
 import { config } from '../config';
 
 const router = Router();
+
+const avatarStorage = multer.diskStorage({
+  destination: (_req, _file, cb) => {
+    const dir = path.join(config.uploadDir, 'avatars');
+    if (!fs.existsSync(dir)) {
+      fs.mkdirSync(dir, { recursive: true });
+    }
+    cb(null, dir);
+  },
+  filename: (_req, file, cb) => {
+    const ext = path.extname(file.originalname);
+    cb(null, `${uuidv4()}${ext}`);
+  },
+});
+
+const avatarUpload = multer({
+  storage: avatarStorage,
+  limits: { fileSize: 5 * 1024 * 1024 },
+});
 
 router.get('/search', authMiddleware, (req: Request, res: Response) => {
   const q = req.query.q as string;
@@ -77,7 +98,7 @@ router.delete('/me', authMiddleware, (req: Request, res: Response) => {
   res.json({ message: 'Account deleted' });
 });
 
-router.put('/me/avatar', authMiddleware, (req: Request, res: Response) => {
+router.put('/me/avatar', authMiddleware, avatarUpload.single('file'), (req: Request, res: Response) => {
   const userId = req.user!.userId;
 
   if (!req.file) {
@@ -96,7 +117,8 @@ router.put('/me/avatar', authMiddleware, (req: Request, res: Response) => {
 
   db.prepare('UPDATE users SET avatar_path = ? WHERE id = ?').run(avatarPath, userId);
 
-  res.json({ avatar_path: avatarPath });
+  const user = db.prepare('SELECT id, username, bio, avatar_path FROM users WHERE id = ?').get(userId) as any;
+  res.json({ user });
 });
 
 export default router;

@@ -138,7 +138,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       : null,
                   child: user.avatarPath == null
                       ? Text(
-                          user.username[1].toUpperCase(),
+                          (user.username.startsWith('@') ? user.username[1] : user.username[0]).toUpperCase(),
                           style: TextStyle(
                             fontSize: 36,
                             color: theme.colorScheme.primary,
