@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/user.dart';
@@ -14,15 +15,56 @@ class AuthProvider extends ChangeNotifier {
   bool _initialized = false;
   bool _serverUnreachable = false;
   String? _unreachableServerAddress;
+  Timer? _healthCheckTimer;
 
   AuthProvider(this._api, this._socket) {
     _api.onConnectionError = (address) {
       if (_user != null) {
-        _serverUnreachable = true;
-        _unreachableServerAddress = address;
-        notifyListeners();
+        _setServerUnreachable(address);
       }
     };
+
+    _socket.onDisconnect(() {
+      if (_user != null) {
+        _setServerUnreachable(_api.serverUrl);
+      }
+    });
+
+    _socket.onConnectError((_) {
+      if (_user != null) {
+        _setServerUnreachable(_api.serverUrl);
+      }
+    });
+  }
+
+  void _setServerUnreachable(String address) {
+    _serverUnreachable = true;
+    _unreachableServerAddress = address;
+    _stopHealthCheck();
+    notifyListeners();
+  }
+
+  void _startHealthCheck() {
+    _healthCheckTimer?.cancel();
+    _healthCheckTimer = Timer.periodic(const Duration(seconds: 30), (_) async {
+      if (_user == null) return;
+      try {
+        await _api.getMe();
+        // Server is back — clear the error
+        if (_serverUnreachable) {
+          _serverUnreachable = false;
+          _unreachableServerAddress = null;
+          notifyListeners();
+        }
+      } catch (_) {
+        // Server is still down — keep the error
+      }
+    });
+  }
+
+  void _stopHealthCheck() {
+    _healthCheckTimer?.cancel();
+    _healthCheckTimer = null;
   }
 
   User? get user => _user;
@@ -73,6 +115,7 @@ class AuthProvider extends ChangeNotifier {
       _socket.connect(server, token);
 
       _user = User.fromJson(userData);
+      _startHealthCheck();
 
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString('server_url', server);
@@ -104,6 +147,7 @@ class AuthProvider extends ChangeNotifier {
       _socket.connect(server, token);
 
       _user = User.fromJson(userData);
+      _startHealthCheck();
 
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString('server_url', server);
@@ -121,6 +165,7 @@ class AuthProvider extends ChangeNotifier {
   }
 
   Future<void> logout() async {
+    _stopHealthCheck();
     _socket.disconnect();
     _api.clear();
     _user = null;
@@ -134,6 +179,7 @@ class AuthProvider extends ChangeNotifier {
   }
 
   void logoutFromServerError() {
+    _stopHealthCheck();
     _socket.disconnect();
     _api.clear();
     _user = null;

@@ -85,6 +85,14 @@ class SocketService {
     _socket?.on('user:offline', callback);
   }
 
+  void onDisconnect(void Function() callback) {
+    _socket?.on('disconnect', (_) => callback());
+  }
+
+  void onConnectError(void Function(dynamic data) callback) {
+    _socket?.on('connect_error', callback);
+  }
+
   void removeListener(String event) {
     _socket?.off(event);
   }
