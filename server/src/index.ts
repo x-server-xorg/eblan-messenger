@@ -38,12 +38,8 @@ app.get('/api/health', (_req, res) => {
 const webBuildPath = path.join(__dirname, '../../client/build/web');
 if (fs.existsSync(webBuildPath)) {
   app.use(express.static(webBuildPath));
-  app.use((req, res, next) => {
-    if (req.method === 'GET' && !req.path.startsWith('/api/') && !req.path.startsWith('/socket.io/')) {
-      res.sendFile(path.join(webBuildPath, 'index.html'));
-    } else {
-      next();
-    }
+  app.get('*', (_req, res) => {
+    res.sendFile(path.join(webBuildPath, 'index.html'));
   });
 } else {
   app.get('/', (_req, res) => {
@@ -63,11 +59,6 @@ if (fs.existsSync(webBuildPath)) {
     });
   });
 }
-
-app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
-  console.error('Unhandled error:', err);
-  res.status(500).json({ error: 'Internal server error' });
-});
 
 server.listen(config.port, '0.0.0.0', () => {
   console.log(`Eblan-Messenger server running on http://0.0.0.0:${config.port}`);
