@@ -40,17 +40,43 @@ export function setupWebSocket(io: SocketIOServer) {
       const { receiverId, chatId, text, file_path, file_type, file_name, file_size } = data;
 
       const isBlocked = db.prepare(
-        'SELECT id FROM blocks WHERE blocker_id = ? AND blocked_id = ?'
+        'SELECT 1 FROM blocks WHERE blocker_id = ? AND blocked_id = ?'
       ).get(receiverId, userId);
       if (isBlocked) {
         socket.emit('message:error', { error: 'You are blocked by this user' });
         return;
       }
 
+      if (chatId) {
+        const chat = db.prepare('SELECT admins_only FROM chats WHERE id = ?').get(chatId) as any;
+        if (chat?.admins_only) {
+          const role = db.prepare('SELECT role FROM chat_members WHERE chat_id = ? AND user_id = ?').get(chatId, userId) as any;
+          if (!role || (role.role !== 'admin' && role.role !== 'creator')) {
+            socket.emit('message:error', { error: 'Only admins can send messages in this chat' });
+            return;
+          }
+        }
+      }
+
+      let mentions: number[] = [];
+      if (text && chatId) {
+        const mentionRegex = /@(\w+)/g;
+        let match;
+        while ((match = mentionRegex.exec(text)) !== null) {
+          const mentionedUser = db.prepare('SELECT id FROM users WHERE username = ?').get(`@${match[1]}`) as any;
+          if (mentionedUser) {
+            const isInChat = db.prepare(
+              'SELECT * FROM chat_members WHERE chat_id = ? AND user_id = ?'
+            ).get(chatId, mentionedUser.id);
+            if (isInChat) mentions.push(mentionedUser.id);
+          }
+        }
+      }
+
       const result = db.prepare(
-        `INSERT INTO messages (sender_id, receiver_id, chat_id, text, file_path, file_type, file_name, file_size)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
-      ).run(userId, receiverId, chatId || null, text || '', file_path || null, file_type || null, file_name || null, file_size || null);
+        `INSERT INTO messages (sender_id, receiver_id, chat_id, text, file_path, file_type, file_name, file_size, mentions)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+      ).run(userId, receiverId, chatId || null, text || '', file_path || null, file_type || null, file_name || null, file_size || null, mentions.length > 0 ? JSON.stringify(mentions) : null);
 
       const message = {
         id: result.lastInsertRowid,
@@ -63,6 +89,7 @@ export function setupWebSocket(io: SocketIOServer) {
         file_type: file_type || null,
         file_name: file_name || null,
         file_size: file_size || null,
+        mentions: mentions.length > 0 ? mentions : null,
         created_at: new Date().toISOString(),
       };
 

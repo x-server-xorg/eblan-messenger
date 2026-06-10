@@ -296,6 +296,72 @@ class ChatProvider extends ChangeNotifier {
     _socket.sendStopRecordingAudio(receiverId);
   }
 
+  Future<bool> updateGroup(int chatId, {String? name, String? description, bool? adminsOnly, String? invitePermission}) async {
+    try {
+      await _api.updateChat(chatId, name: name, description: description, adminsOnly: adminsOnly, invitePermission: invitePermission);
+      return true;
+    } catch (e) {
+      _error = e.toString();
+      notifyListeners();
+      return false;
+    }
+  }
+
+  Future<bool> removeMember(int chatId, int userId) async {
+    try {
+      await _api.removeMember(chatId, userId);
+      return true;
+    } catch (e) {
+      _error = e.toString();
+      notifyListeners();
+      return false;
+    }
+  }
+
+  Future<bool> promoteMember(int chatId, int userId) async {
+    try {
+      await _api.promoteMember(chatId, userId);
+      return true;
+    } catch (e) {
+      _error = e.toString();
+      notifyListeners();
+      return false;
+    }
+  }
+
+  Future<bool> demoteMember(int chatId, int userId) async {
+    try {
+      await _api.demoteMember(chatId, userId);
+      return true;
+    } catch (e) {
+      _error = e.toString();
+      notifyListeners();
+      return false;
+    }
+  }
+
+  Future<bool> pinMessage(int chatId, int messageId) async {
+    try {
+      await _api.pinMessage(chatId, messageId);
+      return true;
+    } catch (e) {
+      _error = e.toString();
+      notifyListeners();
+      return false;
+    }
+  }
+
+  Future<bool> unpinMessage(int chatId, int messageId) async {
+    try {
+      await _api.unpinMessage(chatId, messageId);
+      return true;
+    } catch (e) {
+      _error = e.toString();
+      notifyListeners();
+      return false;
+    }
+  }
+
   Future<Map<String, dynamic>?> uploadFile(String filePath, String fileName) async {
     try {
       final response = await _api.uploadFile(filePath, fileName);

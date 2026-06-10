@@ -34,6 +34,7 @@ db.exec(`
     file_name TEXT,
     file_size INTEGER,
     is_deleted INTEGER DEFAULT 0,
+    mentions TEXT,
     created_at TEXT DEFAULT (datetime('now')),
     FOREIGN KEY (sender_id) REFERENCES users(id) ON DELETE CASCADE,
     FOREIGN KEY (receiver_id) REFERENCES users(id) ON DELETE CASCADE
@@ -46,6 +47,9 @@ db.exec(`
     type TEXT NOT NULL DEFAULT 'dialog',
     creator_id INTEGER,
     avatar_path TEXT,
+    description TEXT DEFAULT '',
+    admins_only INTEGER DEFAULT 0,
+    invite_permission TEXT DEFAULT 'everyone',
     created_at TEXT DEFAULT (datetime('now')),
     FOREIGN KEY (creator_id) REFERENCES users(id) ON DELETE SET NULL
   );
@@ -53,6 +57,7 @@ db.exec(`
   CREATE TABLE IF NOT EXISTS chat_members (
     chat_id INTEGER NOT NULL,
     user_id INTEGER NOT NULL,
+    role TEXT DEFAULT 'member',
     joined_at TEXT DEFAULT (datetime('now')),
     PRIMARY KEY (chat_id, user_id),
     FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE,
@@ -74,6 +79,17 @@ db.exec(`
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
   );
 
+  CREATE TABLE IF NOT EXISTS pinned_messages (
+    chat_id INTEGER NOT NULL,
+    message_id INTEGER NOT NULL,
+    pinned_by INTEGER NOT NULL,
+    pinned_at TEXT DEFAULT (datetime('now')),
+    PRIMARY KEY (chat_id, message_id),
+    FOREIGN KEY (chat_id) REFERENCES chats(id) ON DELETE CASCADE,
+    FOREIGN KEY (message_id) REFERENCES messages(id) ON DELETE CASCADE,
+    FOREIGN KEY (pinned_by) REFERENCES users(id) ON DELETE CASCADE
+  );
+
   CREATE INDEX IF NOT EXISTS idx_messages_sender ON messages(sender_id);
   CREATE INDEX IF NOT EXISTS idx_messages_receiver ON messages(receiver_id);
   CREATE INDEX IF NOT EXISTS idx_messages_chat ON messages(chat_id);
@@ -81,5 +97,11 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_chat_members_user ON chat_members(user_id);
   CREATE INDEX IF NOT EXISTS idx_blocks_blocked ON blocks(blocked_id);
 `);
+
+try { db.exec(`ALTER TABLE chats ADD COLUMN description TEXT DEFAULT ''`); } catch {}
+try { db.exec(`ALTER TABLE chats ADD COLUMN admins_only INTEGER DEFAULT 0`); } catch {}
+try { db.exec(`ALTER TABLE chats ADD COLUMN invite_permission TEXT DEFAULT 'everyone'`); } catch {}
+try { db.exec(`ALTER TABLE chat_members ADD COLUMN role TEXT DEFAULT 'member'`); } catch {}
+try { db.exec(`ALTER TABLE messages ADD COLUMN mentions TEXT`); } catch {}
 
 export default db;

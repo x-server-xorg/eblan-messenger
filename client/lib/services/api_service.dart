@@ -163,6 +163,35 @@ class ApiService {
     });
   }
 
+  Future<Response> updateChat(int chatId, {String? name, String? description, bool? adminsOnly, String? invitePermission}) async {
+    return _dio.put('/api/chats/$chatId', data: {
+      if (name != null) 'name': name,
+      if (description != null) 'description': description,
+      if (adminsOnly != null) 'admins_only': adminsOnly,
+      if (invitePermission != null) 'invite_permission': invitePermission,
+    });
+  }
+
+  Future<Response> removeMember(int chatId, int userId) async {
+    return _dio.delete('/api/chats/$chatId/members/$userId');
+  }
+
+  Future<Response> promoteMember(int chatId, int userId) async {
+    return _dio.post('/api/chats/$chatId/promote/$userId');
+  }
+
+  Future<Response> demoteMember(int chatId, int userId) async {
+    return _dio.post('/api/chats/$chatId/demote/$userId');
+  }
+
+  Future<Response> pinMessage(int chatId, int messageId) async {
+    return _dio.post('/api/chats/$chatId/pin/$messageId');
+  }
+
+  Future<Response> unpinMessage(int chatId, int messageId) async {
+    return _dio.delete('/api/chats/$chatId/pin/$messageId');
+  }
+
   String getFileUrl(String path) {
     return 'http://$_baseUrl/api/files/$path';
   }

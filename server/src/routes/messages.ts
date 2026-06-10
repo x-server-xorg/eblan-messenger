@@ -19,7 +19,13 @@ router.get('/:userId', authMiddleware, (req: Request, res: Response) => {
        AND m.is_deleted = 0
      ORDER BY m.created_at ASC
      LIMIT 200`
-  ).all(myId, otherId, otherId, myId);
+  ).all(myId, otherId, otherId, myId) as any[];
+
+  for (const msg of messages) {
+    if (typeof msg.mentions === 'string') {
+      try { msg.mentions = JSON.parse(msg.mentions); } catch { msg.mentions = null; }
+    }
+  }
 
   res.json({ messages });
 });
