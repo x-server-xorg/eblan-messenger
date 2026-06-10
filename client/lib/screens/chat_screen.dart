@@ -273,65 +273,29 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   Widget _buildMessageInput() {
-    if (_showRecordingPanel) {
-      return _buildRecordingPanel();
-    }
     return _buildNormalInput();
   }
 
-  Widget _buildRecordingPanel() {
-    final isCancelZone = _recordingDragOffset < _cancelThreshold;
+  Widget _buildRecordingTimer() {
     final minutes = _elapsedSeconds ~/ 60;
     final seconds = _elapsedSeconds % 60;
     final timerText = '${minutes.toString().padLeft(2, '0')}:${seconds.toString().padLeft(2, '0')}';
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(
-        color: Theme.of(context).cardTheme.color,
-        border: Border(
-          top: BorderSide(color: Colors.grey.withAlpha(30)),
+    return Center(
+      child: Text(
+        timerText,
+        style: TextStyle(
+          fontSize: 18,
+          fontWeight: FontWeight.w500,
+          color: Theme.of(context).colorScheme.onSurface,
         ),
-      ),
-      child: Row(
-        children: [
-          SizedBox(
-            width: 48,
-            height: 48,
-            child: Icon(
-              Icons.delete_outline,
-              color: isCancelZone ? Colors.red : Colors.grey,
-              size: 28,
-            ),
-          ),
-          Expanded(
-            child: Center(
-              child: Text(
-                timerText,
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w500,
-                  color: Theme.of(context).colorScheme.onSurface,
-                ),
-              ),
-            ),
-          ),
-          SizedBox(
-            width: 48,
-            height: 48,
-            child: Icon(
-              Icons.mic,
-              color: Colors.red,
-              size: 28,
-            ),
-          ),
-        ],
       ),
     );
   }
 
   Widget _buildNormalInput() {
     final t = context.read<LanguageProvider>().t;
+    final isCancelZone = _recordingDragOffset < _cancelThreshold;
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
@@ -342,37 +306,52 @@ class _ChatScreenState extends State<ChatScreen> {
       ),
       child: Row(
         children: [
-          _buildAttachmentButton(),
+          if (_showRecordingPanel)
+            SizedBox(
+              width: 48,
+              height: 48,
+              child: Icon(
+                Icons.delete_outline,
+                color: isCancelZone ? Colors.red : Colors.grey,
+                size: 28,
+              ),
+            )
+          else
+            _buildAttachmentButton(),
           const SizedBox(width: 8),
           Expanded(
-            child: TextField(
-              controller: _textController,
-              focusNode: _focusNode,
-              onChanged: _onTextChanged,
-              decoration: InputDecoration(
-                hintText: t.get('message_hint'),
-                isDense: true,
-                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-              ),
-              maxLines: 5,
-              minLines: 1,
-              textInputAction: TextInputAction.send,
-              onSubmitted: (_) => _sendText(),
-            ),
+            child: _showRecordingPanel
+                ? _buildRecordingTimer()
+                : TextField(
+                    controller: _textController,
+                    focusNode: _focusNode,
+                    onChanged: _onTextChanged,
+                    decoration: InputDecoration(
+                      hintText: t.get('message_hint'),
+                      isDense: true,
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                    ),
+                    maxLines: 5,
+                    minLines: 1,
+                    textInputAction: TextInputAction.send,
+                    onSubmitted: (_) => _sendText(),
+                  ),
           ),
           const SizedBox(width: 8),
-          _textController.text.isNotEmpty
-              ? IconButton(
-                  icon: const Icon(Icons.send, color: Color(0xFF2AABEE)),
-                  onPressed: _sendText,
-                )
-              : AudioRecordWidget(
-                  onComplete: _sendVoiceMessage,
-                  onRecordingStart: _onRecordingStart,
-                  onRecordingEnd: _onRecordingEnd,
-                  onDragDelta: _onRecordingDragDelta,
-                  onCancel: _onRecordingCancel,
-                ),
+          if (!_showRecordingPanel && _textController.text.isNotEmpty)
+            IconButton(
+              icon: const Icon(Icons.send, color: Color(0xFF2AABEE)),
+              onPressed: _sendText,
+            ),
+          AudioRecordWidget(
+            key: const ValueKey('audio_record'),
+            onComplete: _sendVoiceMessage,
+            onRecordingStart: _onRecordingStart,
+            onRecordingEnd: _onRecordingEnd,
+            onDragDelta: _onRecordingDragDelta,
+            onCancel: _onRecordingCancel,
+            isCancelZone: _showRecordingPanel && _recordingDragOffset < _cancelThreshold,
+          ),
         ],
       ),
     );

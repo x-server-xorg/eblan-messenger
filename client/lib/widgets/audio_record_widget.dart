@@ -10,6 +10,7 @@ class AudioRecordWidget extends StatefulWidget {
   final VoidCallback? onRecordingEnd;
   final ValueChanged<double>? onDragDelta;
   final VoidCallback? onCancel;
+  final bool isCancelZone;
 
   const AudioRecordWidget({
     super.key,
@@ -18,6 +19,7 @@ class AudioRecordWidget extends StatefulWidget {
     this.onRecordingEnd,
     this.onDragDelta,
     this.onCancel,
+    this.isCancelZone = false,
   });
 
   @override
@@ -62,7 +64,7 @@ class AudioRecordWidgetState extends State<AudioRecordWidget> {
     setState(() => _isRecording = false);
     widget.onRecordingEnd?.call();
 
-    if (_cancelRequested) {
+    if (_cancelRequested || widget.isCancelZone) {
       if (path != null && File(path).existsSync()) {
         File(path).deleteSync();
       }
