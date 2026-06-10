@@ -35,8 +35,14 @@ app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', version: '1.0.0' });
 });
 
-const webBuildPath = path.join(__dirname, '../../client/build/web');
-if (fs.existsSync(webBuildPath)) {
+const webBuildPaths = [
+  path.join(__dirname, '../../client/build/web'),
+  path.resolve(process.cwd(), 'client/build/web'),
+  path.resolve(__dirname, '..', '..', 'client', 'build', 'web'),
+];
+const webBuildPath = webBuildPaths.find(p => fs.existsSync(p));
+console.log('Web build path:', webBuildPath || 'not found');
+if (webBuildPath) {
   app.use(express.static(webBuildPath));
   app.get('*', (_req, res) => {
     res.sendFile(path.join(webBuildPath, 'index.html'));
