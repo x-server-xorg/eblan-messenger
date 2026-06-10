@@ -39,43 +39,27 @@ class _ProfileScreenState extends State<ProfileScreen> {
     final picker = ImagePicker();
     final picked = await picker.pickImage(source: ImageSource.gallery, maxWidth: 512);
     if (picked == null) return;
-
     final auth = context.read<AuthProvider>();
     final t = context.read<LanguageProvider>().t;
     final success = await auth.updateAvatar(picked.path);
     if (!mounted) return;
-
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(success ? t.get('avatar_updated') : t.get('avatar_failed')),
-        backgroundColor: success ? Colors.green : Colors.red,
-      ),
+      SnackBar(content: Text(success ? t.get('avatar_updated') : t.get('avatar_failed')), backgroundColor: success ? Colors.green : Colors.red),
     );
   }
 
   Future<void> _saveProfile() async {
     setState(() => _saving = true);
-
     final auth = context.read<AuthProvider>();
     final t = context.read<LanguageProvider>().t;
-    final success = await auth.updateProfile(
-      username: _usernameController.text.trim(),
-      bio: _bioController.text.trim(),
-    );
-
+    final success = await auth.updateProfile(username: _usernameController.text.trim(), bio: _bioController.text.trim());
     if (!mounted) return;
-
     if (success) {
       setState(() => _editing = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(t.get('profile_updated')), backgroundColor: Colors.green),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(t.get('profile_updated')), backgroundColor: Colors.green));
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(auth.error ?? t.get('update_failed')), backgroundColor: Colors.red),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(auth.error ?? t.get('update_failed')), backgroundColor: Colors.red));
     }
-
     setState(() => _saving = false);
   }
 
@@ -88,20 +72,14 @@ class _ProfileScreenState extends State<ProfileScreen> {
         content: Text(t.get('delete_confirm')),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(t.get('cancel'))),
-          TextButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            style: TextButton.styleFrom(foregroundColor: Colors.red),
-            child: Text(t.get('delete_account')),
-          ),
+          TextButton(onPressed: () => Navigator.pop(ctx, true), style: TextButton.styleFrom(foregroundColor: Colors.red), child: Text(t.get('delete_account'))),
         ],
       ),
     );
-
     if (confirmed == true) {
       final auth = context.read<AuthProvider>();
       final success = await auth.deleteAccount();
       if (!mounted) return;
-
       if (success) {
         Navigator.of(context).pushAndRemoveUntil(
           MaterialPageRoute(builder: (_) => const Scaffold()),
@@ -133,29 +111,19 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 CircleAvatar(
                   radius: 50,
                   backgroundColor: theme.colorScheme.primary.withAlpha(30),
-                  backgroundImage: user.avatarPath != null
-                      ? NetworkImage(auth.api.getFileUrl(user.avatarPath!))
-                      : null,
+                  backgroundImage: user.avatarPath != null ? NetworkImage(auth.api.getFileUrl(user.avatarPath!)) : null,
                   child: user.avatarPath == null
                       ? Text(
                           (user.username.startsWith('@') ? user.username[1] : user.username[0]).toUpperCase(),
-                          style: TextStyle(
-                            fontSize: 36,
-                            color: theme.colorScheme.primary,
-                            fontWeight: FontWeight.bold,
-                          ),
+                          style: TextStyle(fontSize: 36, color: theme.colorScheme.primary, fontWeight: FontWeight.bold),
                         )
                       : null,
                 ),
                 Positioned(
-                  bottom: 0,
-                  right: 0,
+                  bottom: 0, right: 0,
                   child: Container(
                     padding: const EdgeInsets.all(4),
-                    decoration: BoxDecoration(
-                      color: theme.colorScheme.primary,
-                      shape: BoxShape.circle,
-                    ),
+                    decoration: BoxDecoration(color: theme.colorScheme.primary, shape: BoxShape.circle),
                     child: const Icon(Icons.camera_alt, size: 18, color: Colors.white),
                   ),
                 ),
@@ -178,53 +146,21 @@ class _ProfileScreenState extends State<ProfileScreen> {
                     const Divider(),
                     _infoRow(t.get('id'), '#${user.id}'),
                     const SizedBox(height: 16),
-                    SizedBox(
-                      width: double.infinity,
-                      child: ElevatedButton(
-                        onPressed: () => setState(() => _editing = true),
-                        child: Text(t.get('edit_profile')),
-                      ),
-                    ),
+                    SizedBox(width: double.infinity, child: ElevatedButton(onPressed: () => setState(() => _editing = true), child: Text(t.get('edit_profile')))),
                   ] else ...[
                     Text(t.get('username_label'), style: const TextStyle(color: Colors.grey, fontSize: 12)),
                     const SizedBox(height: 4),
-                    TextField(
-                      controller: _usernameController,
-                      decoration: const InputDecoration(hintText: '@username'),
-                    ),
+                    TextField(controller: _usernameController, decoration: const InputDecoration(hintText: '@username')),
                     const SizedBox(height: 16),
                     Text(t.get('bio'), style: const TextStyle(color: Colors.grey, fontSize: 12)),
                     const SizedBox(height: 4),
-                    TextField(
-                      controller: _bioController,
-                      decoration: InputDecoration(hintText: t.get('bio_hint')),
-                      maxLines: 3,
-                      maxLength: 150,
-                    ),
+                    TextField(controller: _bioController, decoration: InputDecoration(hintText: t.get('bio_hint')), maxLines: 3, maxLength: 150),
                     const SizedBox(height: 16),
                     Row(
                       children: [
-                        Expanded(
-                          child: OutlinedButton(
-                            onPressed: () {
-                              setState(() {
-                                _editing = false;
-                                _usernameController.text = user.username;
-                                _bioController.text = user.bio;
-                              });
-                            },
-                            child: Text(t.get('cancel')),
-                          ),
-                        ),
+                        Expanded(child: OutlinedButton(onPressed: () { setState(() { _editing = false; _usernameController.text = user.username; _bioController.text = user.bio; }); }, child: Text(t.get('cancel')))),
                         const SizedBox(width: 12),
-                        Expanded(
-                          child: ElevatedButton(
-                            onPressed: _saving ? null : _saveProfile,
-                            child: _saving
-                                ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2))
-                                : Text(t.get('save')),
-                          ),
-                        ),
+                        Expanded(child: ElevatedButton(onPressed: _saving ? null : _saveProfile, child: _saving ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2)) : Text(t.get('save')))),
                       ],
                     ),
                   ],
@@ -232,7 +168,11 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ),
             ),
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 16),
+          _buildBlockedUsers(),
+          const SizedBox(height: 16),
+          _buildPrivacySettings(),
+          const SizedBox(height: 16),
           Card(
             child: SwitchListTile(
               title: Text(t.get('dark_theme')),
@@ -242,7 +182,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               secondary: Icon(themeProv.isDark ? Icons.dark_mode : Icons.light_mode),
             ),
           ),
-          const SizedBox(height: 24),
+          const SizedBox(height: 16),
           Card(
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -261,9 +201,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         DropdownMenuItem(value: 'ru', child: Text('Русский')),
                         DropdownMenuItem(value: 'uk', child: Text('Українська')),
                       ],
-                      onChanged: (v) {
-                        if (v != null) langProv.setLocale(v);
-                      },
+                      onChanged: (v) { if (v != null) langProv.setLocale(v); },
                     ),
                   ),
                 ],
@@ -280,6 +218,79 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildBlockedUsers() {
+    final t = context.read<LanguageProvider>().t;
+    final auth = context.read<AuthProvider>();
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(t.get('blocked_users'), style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500)),
+            const SizedBox(height: 8),
+            auth.blockedUsers.isEmpty
+                ? Text(t.get('no_blocked'), style: TextStyle(color: Colors.grey[500]))
+                : Column(
+                    children: auth.blockedUsers.map((u) {
+                      final username = u['username'] as String? ?? '';
+                      final userId = u['id'] as int;
+                      return ListTile(
+                        dense: true,
+                        title: Text(username),
+                        trailing: TextButton(
+                          onPressed: () async {
+                            await auth.unblockUser(userId);
+                            if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(t.get('unblock'))));
+                          },
+                          child: Text(t.get('unblock')),
+                        ),
+                      );
+                    }).toList(),
+                  ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPrivacySettings() {
+    final t = context.read<LanguageProvider>().t;
+    final auth = context.read<AuthProvider>();
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(t.get('privacy'), style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500)),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Expanded(child: Text(t.get('who_can_invite'))),
+                DropdownButtonHideUnderline(
+                  child: DropdownButton<String>(
+                    value: auth.groupInvitePrivacy,
+                    items: [
+                      DropdownMenuItem(value: 'everyone', child: Text(t.get('everyone'))),
+                      DropdownMenuItem(value: 'contacts', child: Text(t.get('contacts'))),
+                      DropdownMenuItem(value: 'nobody', child: Text(t.get('nobody'))),
+                    ],
+                    onChanged: (v) {
+                      if (v != null) auth.updateGroupInvitePrivacy(v);
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }

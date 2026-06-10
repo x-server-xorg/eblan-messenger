@@ -14,7 +14,7 @@ class SearchScreen extends StatefulWidget {
 
 class _SearchScreenState extends State<SearchScreen> {
   final _searchController = TextEditingController();
-  List<User> _results = [];
+  List<dynamic> _results = [];
   bool _searching = false;
 
   @override
@@ -33,11 +33,8 @@ class _SearchScreenState extends State<SearchScreen> {
 
     try {
       final api = context.read<AuthProvider>().api;
-      final response = await api.searchUsers(query.trim());
-      final usersList = (response.data['users'] as List)
-          .map((u) => User.fromJson(u as Map<String, dynamic>))
-          .toList();
-      setState(() => _results = usersList);
+      final response = await api.searchAll(query.trim());
+      setState(() => _results = response.data['results'] as List);
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -52,6 +49,8 @@ class _SearchScreenState extends State<SearchScreen> {
   @override
   Widget build(BuildContext context) {
     final t = context.watch<LanguageProvider>().t;
+    final auth = context.read<AuthProvider>();
+
     return Column(
       children: [
         Padding(
@@ -81,9 +80,7 @@ class _SearchScreenState extends State<SearchScreen> {
               : _results.isEmpty
                   ? Center(
                       child: Text(
-                        _searchController.text.isEmpty
-                            ? t.get('search_empty')
-                            : t.get('search_not_found'),
+                        _searchController.text.isEmpty ? t.get('search_empty') : t.get('search_not_found'),
                         style: TextStyle(color: Colors.grey[500]),
                       ),
                     )
@@ -91,39 +88,79 @@ class _SearchScreenState extends State<SearchScreen> {
                       itemCount: _results.length,
                       separatorBuilder: (_, __) => const Divider(height: 1, indent: 80),
                       itemBuilder: (context, index) {
-                        final user = _results[index];
-                        return ListTile(
-                          leading: CircleAvatar(
-                            backgroundColor: Theme.of(context).colorScheme.primary.withAlpha(30),
-                            backgroundImage: user.avatarPath != null
-                                ? NetworkImage(
-                                    context.read<AuthProvider>().api.getFileUrl(user.avatarPath!),
-                                  )
-                                : null,
-                            child: user.avatarPath == null
-                                ? Text(
-                                    (user.username.startsWith('@') ? user.username[1] : user.username[0]).toUpperCase(),
-                                    style: TextStyle(
-                                      color: Theme.of(context).colorScheme.primary,
-                                      fontWeight: FontWeight.bold,
-                                    ),
-                                  )
-                                : null,
-                          ),
-                          title: Text(user.username),
-                          subtitle: user.bio.isNotEmpty ? Text(user.bio, maxLines: 1) : null,
-                          onTap: () {
-                            Navigator.of(context).push(
-                              MaterialPageRoute(
-                                builder: (_) => ChatScreen(
-                                  userId: user.id,
-                                  username: user.username,
-                                  avatarPath: user.avatarPath,
+                        final item = _results[index];
+                        final type = item['type'] as String;
+
+                        if (type == 'user') {
+                          final user = User.fromJson(item);
+                          return ListTile(
+                            leading: CircleAvatar(
+                              backgroundColor: Theme.of(context).colorScheme.primary.withAlpha(30),
+                              backgroundImage: user.avatarPath != null
+                                  ? NetworkImage(auth.api.getFileUrl(user.avatarPath!))
+                                  : null,
+                              child: user.avatarPath == null
+                                  ? Text(
+                                      (user.username.startsWith('@') ? user.username[1] : user.username[0]).toUpperCase(),
+                                      style: TextStyle(
+                                        color: Theme.of(context).colorScheme.primary,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    )
+                                  : null,
+                            ),
+                            title: Text(user.username),
+                            subtitle: user.bio.isNotEmpty ? Text(user.bio, maxLines: 1) : null,
+                            onTap: () {
+                              Navigator.of(context).push(
+                                MaterialPageRoute(
+                                  builder: (_) => ChatScreen(
+                                    userId: user.id,
+                                    username: user.username,
+                                    avatarPath: user.avatarPath,
+                                  ),
                                 ),
-                              ),
-                            );
-                          },
-                        );
+                              );
+                            },
+                          );
+                        } else {
+                          final chatId = item['id'] as int;
+                          final name = item['name'] as String;
+                          final chatUsername = item['username'] as String?;
+                          final chatAvatar = item['avatar_path'] as String?;
+                          return ListTile(
+                            leading: CircleAvatar(
+                              backgroundColor: Theme.of(context).colorScheme.primary.withAlpha(30),
+                              backgroundImage: chatAvatar != null
+                                  ? NetworkImage(auth.api.getFileUrl(chatAvatar))
+                                  : null,
+                              child: chatAvatar == null
+                                  ? Text(
+                                      name.isNotEmpty ? name[0].toUpperCase() : 'G',
+                                      style: TextStyle(
+                                        color: Theme.of(context).colorScheme.primary,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                    )
+                                  : null,
+                            ),
+                            title: Text(name),
+                            subtitle: chatUsername != null ? Text(chatUsername) : null,
+                            onTap: () {
+                              Navigator.of(context).push(
+                                MaterialPageRoute(
+                                  builder: (_) => ChatScreen(
+                                    userId: 0,
+                                    username: chatUsername ?? name,
+                                    avatarPath: chatAvatar,
+                                    chatId: chatId,
+                                    chatName: name,
+                                  ),
+                                ),
+                              );
+                            },
+                          );
+                        }
                       },
                     ),
         ),

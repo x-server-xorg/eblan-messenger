@@ -2,24 +2,28 @@ class Message {
   final int id;
   final int senderId;
   final int receiverId;
+  final int? chatId;
   final String senderUsername;
   final String text;
   final String? filePath;
   final String? fileType;
   final String? fileName;
   final int? fileSize;
+  final bool isDeleted;
   final DateTime createdAt;
 
   Message({
     required this.id,
     required this.senderId,
     required this.receiverId,
+    this.chatId,
     this.senderUsername = '',
     this.text = '',
     this.filePath,
     this.fileType,
     this.fileName,
     this.fileSize,
+    this.isDeleted = false,
     DateTime? createdAt,
   }) : createdAt = createdAt ?? DateTime.now();
 
@@ -28,12 +32,14 @@ class Message {
       id: json['id'] as int,
       senderId: json['sender_id'] as int,
       receiverId: json['receiver_id'] as int,
+      chatId: json['chat_id'] as int?,
       senderUsername: (json['sender_username'] as String?) ?? '',
       text: (json['text'] as String?) ?? '',
       filePath: json['file_path'] as String?,
       fileType: json['file_type'] as String?,
       fileName: json['file_name'] as String?,
       fileSize: json['file_size'] as int?,
+      isDeleted: (json['is_deleted'] as int?) == 1,
       createdAt: DateTime.tryParse(json['created_at'] as String? ?? '') ?? DateTime.now(),
     );
   }

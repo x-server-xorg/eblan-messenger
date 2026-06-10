@@ -16,24 +16,18 @@ class AuthProvider extends ChangeNotifier {
   bool _serverUnreachable = false;
   String? _unreachableServerAddress;
   Timer? _healthCheckTimer;
+  List<Map<String, dynamic>> _blockedUsers = [];
+  String _groupInvitePrivacy = 'everyone';
 
   AuthProvider(this._api, this._socket) {
     _api.onConnectionError = (address) {
-      if (_user != null) {
-        _setServerUnreachable(address);
-      }
+      if (_user != null) _setServerUnreachable(address);
     };
-
     _socket.onDisconnect(() {
-      if (_user != null) {
-        _setServerUnreachable(_api.serverUrl);
-      }
+      if (_user != null) _setServerUnreachable(_api.serverUrl);
     });
-
     _socket.onConnectError((_) {
-      if (_user != null) {
-        _setServerUnreachable(_api.serverUrl);
-      }
+      if (_user != null) _setServerUnreachable(_api.serverUrl);
     });
   }
 
@@ -50,15 +44,12 @@ class AuthProvider extends ChangeNotifier {
       if (_user == null) return;
       try {
         await _api.getMe();
-        // Server is back — clear the error
         if (_serverUnreachable) {
           _serverUnreachable = false;
           _unreachableServerAddress = null;
           notifyListeners();
         }
-      } catch (_) {
-        // Server is still down — keep the error
-      }
+      } catch (_) {}
     });
   }
 
@@ -76,6 +67,8 @@ class AuthProvider extends ChangeNotifier {
   String? get unreachableServerAddress => _unreachableServerAddress;
   ApiService get api => _api;
   SocketService get socket => _socket;
+  List<Map<String, dynamic>> get blockedUsers => _blockedUsers;
+  String get groupInvitePrivacy => _groupInvitePrivacy;
 
   Future<void> init() async {
     final prefs = await SharedPreferences.getInstance();
@@ -90,14 +83,24 @@ class AuthProvider extends ChangeNotifier {
         final response = await _api.getMe();
         _user = User.fromJson(response.data['user']);
         _initialized = true;
+        await _loadSettings();
         notifyListeners();
         return;
-      } catch (e) {
-        // Don't clear saved data — keep server_url for login screen pre-fill
-      }
+      } catch (_) {}
     }
     _initialized = true;
     notifyListeners();
+  }
+
+  Future<void> _loadSettings() async {
+    try {
+      final resp = await _api.getSettings();
+      _groupInvitePrivacy = resp.data['settings']['group_invite_privacy'] as String? ?? 'everyone';
+    } catch (_) {}
+    try {
+      final resp = await _api.getBlockedUsers();
+      _blockedUsers = (resp.data['users'] as List).cast<Map<String, dynamic>>();
+    } catch (_) {}
   }
 
   Future<bool> register(String server, String username, String password) async {
@@ -110,16 +113,15 @@ class AuthProvider extends ChangeNotifier {
       final response = await _api.register(username, password);
       final token = response.data['token'] as String;
       final userData = response.data['user'] as Map<String, dynamic>;
-
       _api.configure(server, token);
       _socket.connect(server, token);
-
       _user = User.fromJson(userData);
       _startHealthCheck();
 
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString('server_url', server);
       await prefs.setString('token', token);
+      await _loadSettings();
 
       _loading = false;
       notifyListeners();
@@ -142,16 +144,15 @@ class AuthProvider extends ChangeNotifier {
       final response = await _api.login(username, password);
       final token = response.data['token'] as String;
       final userData = response.data['user'] as Map<String, dynamic>;
-
       _api.configure(server, token);
       _socket.connect(server, token);
-
       _user = User.fromJson(userData);
       _startHealthCheck();
 
       final prefs = await SharedPreferences.getInstance();
       await prefs.setString('server_url', server);
       await prefs.setString('token', token);
+      await _loadSettings();
 
       _loading = false;
       notifyListeners();
@@ -171,10 +172,10 @@ class AuthProvider extends ChangeNotifier {
     _user = null;
     _serverUnreachable = false;
     _unreachableServerAddress = null;
-
+    _blockedUsers = [];
     final prefs = await SharedPreferences.getInstance();
-    await _clearSavedData(prefs);
-
+    await prefs.remove('server_url');
+    await prefs.remove('token');
     notifyListeners();
   }
 
@@ -185,6 +186,7 @@ class AuthProvider extends ChangeNotifier {
     _user = null;
     _serverUnreachable = false;
     _unreachableServerAddress = null;
+    _blockedUsers = [];
     notifyListeners();
   }
 
@@ -214,6 +216,45 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
+  Future<bool> blockUser(int userId) async {
+    try {
+      await _api.blockUser(userId);
+      await _loadSettings();
+      notifyListeners();
+      return true;
+    } catch (e) {
+      _error = _extractError(e);
+      notifyListeners();
+      return false;
+    }
+  }
+
+  Future<bool> unblockUser(int userId) async {
+    try {
+      await _api.unblockUser(userId);
+      await _loadSettings();
+      notifyListeners();
+      return true;
+    } catch (e) {
+      _error = _extractError(e);
+      notifyListeners();
+      return false;
+    }
+  }
+
+  Future<bool> updateGroupInvitePrivacy(String value) async {
+    try {
+      await _api.updateSettings(value);
+      _groupInvitePrivacy = value;
+      notifyListeners();
+      return true;
+    } catch (e) {
+      _error = _extractError(e);
+      notifyListeners();
+      return false;
+    }
+  }
+
   Future<bool> deleteAccount() async {
     try {
       await _api.deleteAccount();
@@ -224,11 +265,6 @@ class AuthProvider extends ChangeNotifier {
       notifyListeners();
       return false;
     }
-  }
-
-  Future<void> _clearSavedData(SharedPreferences prefs) async {
-    await prefs.remove('server_url');
-    await prefs.remove('token');
   }
 
   String _extractError(dynamic e) {

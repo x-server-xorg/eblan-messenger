@@ -121,4 +121,75 @@ router.put('/me/avatar', authMiddleware, avatarUpload.single('file'), (req: Requ
   res.json({ user });
 });
 
+router.post('/block/:userId', authMiddleware, (req: Request, res: Response) => {
+  const blockerId = req.user!.userId;
+  const blockedId = parseInt(String(req.params.userId), 10);
+
+  if (blockerId === blockedId) {
+    return res.status(400).json({ error: 'Cannot block yourself' });
+  }
+
+  const target = db.prepare('SELECT id FROM users WHERE id = ?').get(blockedId);
+  if (!target) {
+    return res.status(404).json({ error: 'User not found' });
+  }
+
+  db.prepare('INSERT OR IGNORE INTO blocks (blocker_id, blocked_id) VALUES (?, ?)').run(blockerId, blockedId);
+
+  res.json({ message: 'User blocked' });
+});
+
+router.post('/unblock/:userId', authMiddleware, (req: Request, res: Response) => {
+  const blockerId = req.user!.userId;
+  const blockedId = parseInt(String(req.params.userId), 10);
+
+  db.prepare('DELETE FROM blocks WHERE blocker_id = ? AND blocked_id = ?').run(blockerId, blockedId);
+
+  res.json({ message: 'User unblocked' });
+});
+
+router.get('/blocks/list', authMiddleware, (req: Request, res: Response) => {
+  const myId = req.user!.userId;
+
+  const blocked = db.prepare(`
+    SELECT u.id, u.username, u.avatar_path, b.created_at
+    FROM blocks b
+    JOIN users u ON u.id = b.blocked_id
+    WHERE b.blocker_id = ?
+  `).all(myId);
+
+  res.json({ users: blocked });
+});
+
+router.get('/settings', authMiddleware, (req: Request, res: Response) => {
+  const myId = req.user!.userId;
+
+  let settings = db.prepare('SELECT * FROM user_settings WHERE user_id = ?').get(myId) as any;
+  if (!settings) {
+    db.prepare('INSERT INTO user_settings (user_id) VALUES (?)').run(myId);
+    settings = { user_id: myId, group_invite_privacy: 'everyone' };
+  }
+
+  res.json({ settings });
+});
+
+router.put('/settings', authMiddleware, (req: Request, res: Response) => {
+  const myId = req.user!.userId;
+  const { group_invite_privacy } = req.body;
+
+  if (group_invite_privacy && !['everyone', 'contacts', 'nobody'].includes(group_invite_privacy)) {
+    return res.status(400).json({ error: 'Invalid privacy setting' });
+  }
+
+  const existing = db.prepare('SELECT * FROM user_settings WHERE user_id = ?').get(myId);
+  if (existing) {
+    db.prepare('UPDATE user_settings SET group_invite_privacy = ? WHERE user_id = ?').run(group_invite_privacy || 'everyone', myId);
+  } else {
+    db.prepare('INSERT INTO user_settings (user_id, group_invite_privacy) VALUES (?, ?)').run(myId, group_invite_privacy || 'everyone');
+  }
+
+  const settings = db.prepare('SELECT * FROM user_settings WHERE user_id = ?').get(myId) as any;
+  res.json({ settings });
+});
+
 export default router;

@@ -1,15 +1,14 @@
-// ignore_for_file: library_prefixes
 import 'package:socket_io_client/socket_io_client.dart' as IO;
 
 class SocketService {
   IO.Socket? _socket;
+
   void connect(String serverUrl, String token) {
     _socket = IO.io('http://$serverUrl', IO.OptionBuilder()
       .setTransports(['websocket'])
       .setAuth({'token': token})
       .enableForceNew()
       .build());
-
     _socket?.connect();
   }
 
@@ -20,11 +19,11 @@ class SocketService {
   }
 
   IO.Socket? get socket => _socket;
-
   bool get isConnected => _socket?.connected ?? false;
 
   void sendMessage({
     required int receiverId,
+    int? chatId,
     String text = '',
     String? filePath,
     String? fileType,
@@ -33,6 +32,7 @@ class SocketService {
   }) {
     _socket?.emit('message:send', {
       'receiverId': receiverId,
+      'chatId': chatId,
       'text': text,
       'file_path': filePath,
       'file_type': fileType,
@@ -41,12 +41,19 @@ class SocketService {
     });
   }
 
-  void sendTyping(int receiverId) {
-    _socket?.emit('user:typing', {'receiverId': receiverId});
+  void deleteMessage(int messageId, {bool forAll = false}) {
+    _socket?.emit('message:delete', {
+      'messageId': messageId,
+      'forAll': forAll,
+    });
   }
 
-  void sendStopTyping(int receiverId) {
-    _socket?.emit('user:stop_typing', {'receiverId': receiverId});
+  void sendTyping(int receiverId, {int? chatId}) {
+    _socket?.emit('user:typing', {'receiverId': receiverId, 'chatId': chatId});
+  }
+
+  void sendStopTyping(int receiverId, {int? chatId}) {
+    _socket?.emit('user:stop_typing', {'receiverId': receiverId, 'chatId': chatId});
   }
 
   void sendRecordingAudio(int receiverId) {
@@ -57,8 +64,24 @@ class SocketService {
     _socket?.emit('user:stop_recording_audio', {'receiverId': receiverId});
   }
 
+  void joinChat(int chatId) {
+    _socket?.emit('chat:join', {'chatId': chatId});
+  }
+
+  void leaveChat(int chatId) {
+    _socket?.emit('chat:leave', {'chatId': chatId});
+  }
+
   void onMessageReceived(void Function(dynamic data) callback) {
     _socket?.on('message:received', callback);
+  }
+
+  void onMessageDeleted(void Function(dynamic data) callback) {
+    _socket?.on('message:deleted', callback);
+  }
+
+  void onMessageError(void Function(dynamic data) callback) {
+    _socket?.on('message:error', callback);
   }
 
   void onUserTyping(void Function(dynamic data) callback) {

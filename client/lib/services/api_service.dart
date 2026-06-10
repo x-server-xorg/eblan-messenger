@@ -63,6 +63,10 @@ class ApiService {
     return _dio.get('/api/users/search', queryParameters: {'q': query});
   }
 
+  Future<Response> searchAll(String query) async {
+    return _dio.get('/api/chats/search', queryParameters: {'q': query});
+  }
+
   Future<Response> getUser(int userId) async {
     return _dio.get('/api/users/$userId');
   }
@@ -82,8 +86,38 @@ class ApiService {
     return _dio.get('/api/messages/$userId');
   }
 
+  Future<Response> getChatMessages(int chatId) async {
+    return _dio.get('/api/chats/$chatId/messages');
+  }
+
   Future<Response> getChats() async {
     return _dio.get('/api/messages/chats/list');
+  }
+
+  Future<Response> getAllChats() async {
+    return _dio.get('/api/chats');
+  }
+
+  Future<Response> createGroup(String name, String username, List<int> memberIds) async {
+    return _dio.post('/api/chats', data: {
+      'name': name,
+      'username': username,
+      'members': memberIds,
+    });
+  }
+
+  Future<Response> getChat(int chatId) async {
+    return _dio.get('/api/chats/$chatId');
+  }
+
+  Future<Response> deleteChat(int chatId) async {
+    return _dio.delete('/api/chats/$chatId');
+  }
+
+  Future<Response> inviteToChat(int chatId, int userId) async {
+    return _dio.post('/api/chats/$chatId/invite', data: {
+      'userId': userId,
+    });
   }
 
   Future<Response> uploadFile(String filePath, String fileName) async {
@@ -99,6 +133,34 @@ class ApiService {
       'file': await MultipartFile.fromFile(filePath, filename: fileName),
     });
     return _dio.put('/api/users/me/avatar', data: formData);
+  }
+
+  Future<Response> deleteMessage(int messageId, {bool forAll = false}) async {
+    return _dio.delete('/api/messages/$messageId', queryParameters: {
+      if (forAll) 'forAll': 'true',
+    });
+  }
+
+  Future<Response> blockUser(int userId) async {
+    return _dio.post('/api/users/block/$userId');
+  }
+
+  Future<Response> unblockUser(int userId) async {
+    return _dio.post('/api/users/unblock/$userId');
+  }
+
+  Future<Response> getBlockedUsers() async {
+    return _dio.get('/api/users/blocks/list');
+  }
+
+  Future<Response> getSettings() async {
+    return _dio.get('/api/users/settings');
+  }
+
+  Future<Response> updateSettings(String groupInvitePrivacy) async {
+    return _dio.put('/api/users/settings', data: {
+      'group_invite_privacy': groupInvitePrivacy,
+    });
   }
 
   String getFileUrl(String path) {

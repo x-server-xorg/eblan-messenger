@@ -7,6 +7,7 @@ class ChatTile extends StatelessWidget {
   final String? lastMessage;
   final String? avatarPath;
   final bool isOnline;
+  final bool isGroup;
   final VoidCallback onTap;
 
   const ChatTile({
@@ -15,6 +16,7 @@ class ChatTile extends StatelessWidget {
     this.lastMessage,
     this.avatarPath,
     this.isOnline = false,
+    this.isGroup = false,
     required this.onTap,
   });
 
@@ -32,42 +34,28 @@ class ChatTile extends StatelessWidget {
             backgroundColor: Theme.of(context).colorScheme.primary.withAlpha(30),
             backgroundImage: avatarUrl != null ? NetworkImage(avatarUrl) : null,
             child: avatarUrl == null
-                ? Text(
-                    (username.startsWith('@') ? username[1] : username[0]).toUpperCase(),
-                    style: TextStyle(
-                      color: Theme.of(context).colorScheme.primary,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 20,
-                    ),
+                ? Icon(
+                    isGroup ? Icons.group : Icons.person,
+                    color: Theme.of(context).colorScheme.primary,
+                    size: 24,
                   )
                 : null,
           ),
-          if (isOnline)
+          if (isOnline && !isGroup)
             Positioned(
               right: 2,
               bottom: 2,
               child: Container(
                 width: 12,
                 height: 12,
-                decoration: const BoxDecoration(
-                  color: Colors.green,
-                  shape: BoxShape.circle,
-                ),
+                decoration: const BoxDecoration(color: Colors.green, shape: BoxShape.circle),
               ),
             ),
         ],
       ),
-      title: Text(
-        username,
-        style: const TextStyle(fontWeight: FontWeight.w600),
-      ),
+      title: Text(username, style: const TextStyle(fontWeight: FontWeight.w600)),
       subtitle: lastMessage != null && lastMessage!.isNotEmpty
-          ? Text(
-              lastMessage!,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(color: Colors.grey[500]),
-            )
+          ? Text(lastMessage!, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(color: Colors.grey[500]))
           : null,
       trailing: const Icon(Icons.chevron_right, color: Colors.grey),
     );

@@ -13,12 +13,16 @@ class ChatScreen extends StatefulWidget {
   final int userId;
   final String username;
   final String? avatarPath;
+  final int? chatId;
+  final String? chatName;
 
   const ChatScreen({
     super.key,
     required this.userId,
     required this.username,
     this.avatarPath,
+    this.chatId,
+    this.chatName,
   });
 
   @override
@@ -39,13 +43,21 @@ class _ChatScreenState extends State<ChatScreen> {
 
   static const double _cancelThreshold = -80;
 
+  bool get isGroup => widget.chatId != null;
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final chatProvider = context.read<ChatProvider>();
-      chatProvider.setSelectedChat(widget.userId);
-      chatProvider.loadMessages(widget.userId);
+      if (isGroup) {
+        chatProvider.setSelectedGroupChat(widget.chatId);
+        chatProvider.loadGroupMessages(widget.chatId!);
+        chatProvider.socket.joinChat(widget.chatId!);
+      } else {
+        chatProvider.setSelectedChat(widget.userId);
+        chatProvider.loadMessages(widget.userId);
+      }
     });
   }
 
@@ -57,9 +69,15 @@ class _ChatScreenState extends State<ChatScreen> {
     _typingTimer?.cancel();
     _recordingTimer?.cancel();
     final chatProvider = context.read<ChatProvider>();
-    chatProvider.sendStopTyping(widget.userId);
-    chatProvider.sendStopRecordingAudio(widget.userId);
+    if (isGroup) {
+      chatProvider.sendStopTyping(widget.userId, chatId: widget.chatId);
+      chatProvider.socket.leaveChat(widget.chatId!);
+    } else {
+      chatProvider.sendStopTyping(widget.userId);
+      chatProvider.sendStopRecordingAudio(widget.userId);
+    }
     chatProvider.setSelectedChat(null);
+    chatProvider.setSelectedGroupChat(null);
     super.dispose();
   }
 
@@ -79,14 +97,14 @@ class _ChatScreenState extends State<ChatScreen> {
     final chatProvider = context.read<ChatProvider>();
     if (text.isNotEmpty && !_isTyping) {
       _isTyping = true;
-      chatProvider.sendTyping(widget.userId);
+      chatProvider.sendTyping(widget.userId, chatId: widget.chatId);
     }
 
     _typingTimer?.cancel();
     _typingTimer = Timer(const Duration(seconds: 2), () {
       if (_isTyping) {
         _isTyping = false;
-        chatProvider.sendStopTyping(widget.userId);
+        chatProvider.sendStopTyping(widget.userId, chatId: widget.chatId);
       }
     });
   }
@@ -97,6 +115,7 @@ class _ChatScreenState extends State<ChatScreen> {
 
     context.read<ChatProvider>().sendMessage(
       receiverId: widget.userId,
+      chatId: widget.chatId,
       text: text,
     );
 
@@ -146,12 +165,12 @@ class _ChatScreenState extends State<ChatScreen> {
 
     chatProvider.sendMessage(
       receiverId: widget.userId,
+      chatId: widget.chatId,
       filePath: uploadResult['file_path'] as String,
       fileType: uploadResult['file_type'] as String,
       fileName: uploadResult['file_name'] as String,
       fileSize: uploadResult['file_size'] as int?,
     );
-
     _scrollToBottom();
   }
 
@@ -164,11 +183,8 @@ class _ChatScreenState extends State<ChatScreen> {
     context.read<ChatProvider>().sendRecordingAudio(widget.userId);
     _isTyping = false;
     _typingTimer?.cancel();
-
     _recordingTimer = Timer.periodic(const Duration(seconds: 1), (_) {
-      if (mounted) {
-        setState(() => _elapsedSeconds++);
-      }
+      if (mounted) setState(() => _elapsedSeconds++);
     });
   }
 
@@ -190,16 +206,201 @@ class _ChatScreenState extends State<ChatScreen> {
     await _sendFile(audioPath, 'voice_message.ogg');
   }
 
+  void _showMessageActions(int messageId, bool isMyMessage) {
+    if (!isMyMessage) return;
+
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        bool deleteForAll = false;
+        return StatefulBuilder(
+          builder: (ctx, setDialogState) => AlertDialog(
+            title: Text(context.read<LanguageProvider>().t.get('delete_message')),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (isGroup) ...[
+                  CheckboxListTile(
+                    title: Text(context.read<LanguageProvider>().t.get('delete_for_all')),
+                    value: deleteForAll,
+                    onChanged: (v) => setDialogState(() => deleteForAll = v ?? false),
+                  ),
+                ],
+                Text(context.read<LanguageProvider>().t.get('delete_confirm_short')),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx),
+                child: Text(context.read<LanguageProvider>().t.get('cancel')),
+              ),
+              TextButton(
+                onPressed: () {
+                  Navigator.pop(ctx);
+                  context.read<ChatProvider>().deleteMessage(messageId, forAll: deleteForAll);
+                },
+                style: TextButton.styleFrom(foregroundColor: Colors.red),
+                child: Text(context.read<LanguageProvider>().t.get('delete')),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  void _showUserMenu() {
+    final t = context.read<LanguageProvider>().t;
+    showModalBottomSheet(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.block, color: Colors.red),
+              title: Text(t.get('block_user')),
+              onTap: () {
+                Navigator.pop(ctx);
+                _blockUser();
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.delete_forever, color: Colors.red),
+              title: Text(t.get('delete_chat')),
+              onTap: () {
+                Navigator.pop(ctx);
+                _deleteChat();
+              },
+            ),
+            if (isGroup)
+              ListTile(
+                leading: const Icon(Icons.person_add),
+                title: Text(t.get('invite_user')),
+                onTap: () {
+                  Navigator.pop(ctx);
+                  _showInviteDialog();
+                },
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _blockUser() async {
+    final t = context.read<LanguageProvider>().t;
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(t.get('block_user')),
+        content: Text(t.get('block_confirm').replaceFirst('{username}', widget.username)),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(t.get('cancel'))),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: Text(t.get('block')),
+          ),
+        ],
+      ),
+    );
+    if (confirm == true) {
+      await context.read<AuthProvider>().blockUser(widget.userId);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(t.get('user_blocked').replaceFirst('{username}', widget.username))),
+        );
+      }
+    }
+  }
+
+  Future<void> _deleteChat() async {
+    final chatProvider = context.read<ChatProvider>();
+    final t = context.read<LanguageProvider>().t;
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(t.get('delete_chat')),
+        content: Text(t.get('delete_chat_confirm')),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text(t.get('cancel'))),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: Text(t.get('delete')),
+          ),
+        ],
+      ),
+    );
+    if (confirm == true) {
+      if (isGroup) {
+        await chatProvider.deleteChat(widget.chatId!);
+      } else {
+        await chatProvider.deleteChat(widget.userId);
+      }
+      if (mounted) Navigator.pop(context);
+    }
+  }
+
+  void _showInviteDialog() {
+    final searchCtrl = TextEditingController();
+    final t = context.read<LanguageProvider>().t;
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(t.get('invite_user')),
+        content: TextField(
+          controller: searchCtrl,
+          decoration: InputDecoration(hintText: '@username'),
+          autofocus: true,
+          onSubmitted: (val) async {
+            if (val.trim().isEmpty) return;
+            try {
+              final api = context.read<AuthProvider>().api;
+              final resp = await api.searchUsers(val.trim());
+              final users = resp.data['users'] as List;
+              if (users.isEmpty) {
+                if (ctx.mounted) ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(content: Text(t.get('user_not_found'))));
+                return;
+              }
+              final user = users[0] as Map<String, dynamic>;
+              final success = await context.read<ChatProvider>().inviteToChat(widget.chatId!, user['id'] as int);
+              if (ctx.mounted) {
+                Navigator.pop(ctx);
+                ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(
+                  content: Text(success ? t.get('user_invited') : t.get('invite_failed')),
+                  backgroundColor: success ? Colors.green : Colors.red,
+                ));
+              }
+            } catch (_) {
+              if (ctx.mounted) {
+                Navigator.pop(ctx);
+                ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(content: Text(t.get('invite_failed')), backgroundColor: Colors.red));
+              }
+            }
+          },
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: Text(t.get('cancel'))),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final chatProvider = context.watch<ChatProvider>();
     final t = context.watch<LanguageProvider>().t;
-    final messages = chatProvider.getMessages(widget.userId) ?? [];
+    final messages = isGroup
+        ? chatProvider.getGroupMessages(widget.chatId!) ?? []
+        : chatProvider.getMessages(widget.userId) ?? [];
     final isTyping = chatProvider.isTyping(widget.userId);
     final isRecordingAudio = chatProvider.isRecordingAudio(widget.userId);
     final isOnline = chatProvider.isOnline(widget.userId);
     final auth = context.read<AuthProvider>();
     final currentUserId = auth.user!.id;
+    final displayName = isGroup ? (widget.chatName ?? widget.username) : widget.username;
 
     return Scaffold(
       appBar: AppBar(
@@ -226,19 +427,34 @@ class _ChatScreenState extends State<ChatScreen> {
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(widget.username, style: const TextStyle(fontSize: 16)),
+                Text(displayName, style: const TextStyle(fontSize: 16)),
                 if (isRecordingAudio || _showRecordingPanel)
                   Text(t.get('recording_audio'), style: const TextStyle(fontSize: 12, color: Colors.red))
                 else if (isTyping)
                   Text(t.get('typing'), style: TextStyle(fontSize: 12, color: Theme.of(context).colorScheme.primary))
-                else if (isOnline)
-                  Text(t.get('online'), style: TextStyle(fontSize: 12, color: Colors.green))
-                else
-                  Text(t.get('offline'), style: TextStyle(fontSize: 12, color: Colors.grey)),
+                else if (isOnline && !isGroup)
+                  Text(t.get('online'), style: const TextStyle(fontSize: 12, color: Colors.green))
+                else if (!isGroup)
+                  Text(t.get('offline'), style: const TextStyle(fontSize: 12, color: Colors.grey)),
               ],
             ),
           ],
         ),
+        actions: [
+          PopupMenuButton(
+            icon: const Icon(Icons.more_vert),
+            onSelected: (v) {
+              switch (v) {
+                case 'menu':
+                  _showUserMenu();
+                  break;
+              }
+            },
+            itemBuilder: (_) => [
+              PopupMenuItem(value: 'menu', child: Text(t.get('actions'))),
+            ],
+          ),
+        ],
       ),
       body: Column(
         children: [
@@ -258,10 +474,13 @@ class _ChatScreenState extends State<ChatScreen> {
                     itemBuilder: (context, index) {
                       final message = messages[index];
                       final isMe = message.senderId == currentUserId;
-                      return MessageBubble(
-                        message: message,
-                        isMe: isMe,
-                        serverUrl: auth.api.serverUrl,
+                      return GestureDetector(
+                        onLongPress: isMe ? () => _showMessageActions(message.id, true) : null,
+                        child: MessageBubble(
+                          message: message,
+                          isMe: isMe,
+                          serverUrl: auth.api.serverUrl,
+                        ),
                       );
                     },
                   ),
@@ -283,11 +502,7 @@ class _ChatScreenState extends State<ChatScreen> {
     return Center(
       child: Text(
         timerText,
-        style: TextStyle(
-          fontSize: 18,
-          fontWeight: FontWeight.w500,
-          color: Theme.of(context).colorScheme.onSurface,
-        ),
+        style: TextStyle(fontSize: 18, fontWeight: FontWeight.w500, color: Theme.of(context).colorScheme.onSurface),
       ),
     );
   }
@@ -300,22 +515,12 @@ class _ChatScreenState extends State<ChatScreen> {
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       decoration: BoxDecoration(
         color: Theme.of(context).cardTheme.color,
-        border: Border(
-          top: BorderSide(color: Colors.grey.withAlpha(30)),
-        ),
+        border: Border(top: BorderSide(color: Colors.grey.withAlpha(30))),
       ),
       child: Row(
         children: [
           if (_showRecordingPanel)
-            SizedBox(
-              width: 48,
-              height: 48,
-              child: Icon(
-                Icons.delete_outline,
-                color: isCancelZone ? Colors.red : Colors.grey,
-                size: 28,
-              ),
-            )
+            SizedBox(width: 48, height: 48, child: Icon(Icons.delete_outline, color: isCancelZone ? Colors.red : Colors.grey, size: 28))
           else
             _buildAttachmentButton(),
           const SizedBox(width: 8),
@@ -339,10 +544,7 @@ class _ChatScreenState extends State<ChatScreen> {
           ),
           const SizedBox(width: 8),
           if (!_showRecordingPanel && _textController.text.isNotEmpty)
-            IconButton(
-              icon: const Icon(Icons.send, color: Color(0xFF2AABEE)),
-              onPressed: _sendText,
-            ),
+            IconButton(icon: const Icon(Icons.send, color: Color(0xFF2AABEE)), onPressed: _sendText),
           AudioRecordWidget(
             key: const ValueKey('audio_record'),
             onComplete: _sendVoiceMessage,
@@ -363,15 +565,9 @@ class _ChatScreenState extends State<ChatScreen> {
       icon: const Icon(Icons.attach_file),
       onSelected: (value) {
         switch (value) {
-          case 'image':
-            _pickImage();
-            break;
-          case 'video':
-            _pickVideo();
-            break;
-          case 'file':
-            _pickFile();
-            break;
+          case 'image': _pickImage(); break;
+          case 'video': _pickVideo(); break;
+          case 'file': _pickFile(); break;
         }
       },
       itemBuilder: (context) => [

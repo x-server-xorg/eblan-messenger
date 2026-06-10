@@ -9,6 +9,7 @@ import authRoutes from './routes/auth';
 import userRoutes from './routes/users';
 import messageRoutes from './routes/messages';
 import fileRoutes from './routes/files';
+import chatRoutes from './routes/chats';
 import { setupWebSocket } from './websocket/handler';
 
 const app = express();
@@ -28,6 +29,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/messages', messageRoutes);
 app.use('/api/files', fileRoutes);
+app.use('/api/chats', chatRoutes);
 
 setupWebSocket(io);
 
