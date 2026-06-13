@@ -1,5 +1,6 @@
 name: Build APK and Create Release
 
+
 on:
   push:
     tags:
@@ -16,12 +17,11 @@ jobs:
     - name: Setup Flutter
       uses: subosito/flutter-action@v2
       with:
-        flutter-version: '3.22.0'
+        flutter-version: '3.29.0'
         channel: 'stable'
 
-    - name: Enable Linux desktop
+    - name: Enable Android
       run: |
-        flutter config --enable-linux-desktop
         flutter config --enable-android
 
     - name: Get Flutter dependencies
@@ -58,9 +58,6 @@ jobs:
 
           ### Installation
           Download the APK and install on your Android device.
-
-          ### Changes
-          See commit history for details.
 
     - name: Upload APK as artifact
       uses: actions/upload-artifact@v4
