@@ -57,26 +57,50 @@ class _ChatScreenState extends State<ChatScreen> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       final chatProvider = context.read<ChatProvider>();
-      if (isGroup) {
-        chatProvider.setSelectedGroupChat(widget.chatId);
-        chatProvider.loadGroupMessages(widget.chatId!);
-        chatProvider.socket.joinChat(widget.chatId!);
-        _loadMembers();
+      
+      // Ensure socket is connected before using it
+      if (chatProvider.socket?.isConnected != true) {
+        Future.delayed(const Duration(milliseconds: 500), () {
+          if (mounted) _initChat();
+        });
       } else {
-        chatProvider.setSelectedChat(widget.userId);
-        chatProvider.loadMessages(widget.userId);
+        _initChat();
       }
     });
     _textController.addListener(_onMentionChanged);
   }
 
-  Future<void> _loadMembers() async {
+  void _initChat() {
+    final chatProvider = context.read<ChatProvider>();
+    if (isGroup) {
+      chatProvider.setSelectedGroupChat(widget.chatId);
+      chatProvider.loadGroupMessages(widget.chatId!);
+      if (chatProvider.socket?.isConnected == true) {
+        chatProvider.socket.joinChat(widget.chatId!);
+      }
+      _loadMembersWithRetry();
+    } else {
+      chatProvider.setSelectedChat(widget.userId);
+      chatProvider.loadMessages(widget.userId);
+    }
+  }
+
+  Future<void> _loadMembersWithRetry({int retryCount = 0}) async {
+    const maxRetries = 3;
     try {
       final api = context.read<AuthProvider>().api;
       final resp = await api.getChat(widget.chatId!);
       final chat = resp.data['chat'] as Map<String, dynamic>;
-      setState(() => _members = (chat['members'] as List).cast<Map<String, dynamic>>());
-    } catch (_) {}
+      if (mounted) {
+        setState(() => _members = (chat['members'] as List).cast<Map<String, dynamic>>());
+      }
+    } catch (e) {
+      if (retryCount < maxRetries && mounted) {
+        Future.delayed(Duration(seconds: retryCount + 1), () {
+          if (mounted) _loadMembersWithRetry(retryCount: retryCount + 1);
+        });
+      }
+    }
   }
 
   @override
@@ -710,6 +734,7 @@ class _ChatScreenState extends State<ChatScreen> {
   Widget _buildNormalInput() {
     final t = context.read<LanguageProvider>().t;
     final isCancelZone = _recordingDragOffset < _cancelThreshold;
+    final hasText = _textController.text.trim().isNotEmpty;
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
@@ -747,17 +772,24 @@ class _ChatScreenState extends State<ChatScreen> {
                   ),
           ),
           const SizedBox(width: 8),
-          if (!_showRecordingPanel && _textController.text.isNotEmpty)
-            IconButton(icon: const Icon(Icons.send, color: Color(0xFF2AABEE)), onPressed: _sendText),
-          AudioRecordWidget(
-            key: const ValueKey('audio_record'),
-            onComplete: _sendVoiceMessage,
-            onRecordingStart: _onRecordingStart,
-            onRecordingEnd: _onRecordingEnd,
-            onDragDelta: _onRecordingDragDelta,
-            onCancel: _onRecordingCancel,
-            isCancelZone: _showRecordingPanel && _recordingDragOffset < _cancelThreshold,
-          ),
+          if (!_showRecordingPanel)
+            IconButton(
+              icon: Icon(
+                hasText ? Icons.send : Icons.mic,
+                color: hasText ? const Color(0xFF2AABEE) : Colors.grey,
+              ),
+              onPressed: hasText ? _sendText : null,
+            ),
+          if (!_showRecordingPanel && !hasText)
+            AudioRecordWidget(
+              key: const ValueKey('audio_record'),
+              onComplete: _sendVoiceMessage,
+              onRecordingStart: _onRecordingStart,
+              onRecordingEnd: _onRecordingEnd,
+              onDragDelta: _onRecordingDragDelta,
+              onCancel: _onRecordingCancel,
+              isCancelZone: _showRecordingPanel && _recordingDragOffset < _cancelThreshold,
+            ),
         ],
       ),
     );
