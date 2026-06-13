@@ -591,7 +591,7 @@ class _ChatScreenState extends State<ChatScreen> {
                   content: Text(success ? t.get('user_invited') : t.get('invite_failed')),
                   backgroundColor: success ? Colors.green : Colors.red,
                 ));
-                if (success) _loadMembers();
+                if (success) _loadMembersWithRetry();
               }
             } catch (_) {
               if (ctx.mounted) {
