@@ -1,0 +1,69 @@
+name: Build APK and Create Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Setup Flutter
+      uses: subosito/flutter-action@v2
+      with:
+        flutter-version: '3.22.0'
+        channel: 'stable'
+
+    - name: Enable Linux desktop
+      run: |
+        flutter config --enable-linux-desktop
+        flutter config --enable-android
+
+    - name: Get Flutter dependencies
+      run: |
+        cd client
+        flutter pub get
+
+    - name: Build APK
+      run: |
+        cd client
+        flutter build apk --release
+
+    - name: Get version from pubspec.yaml
+      id: get_version
+      run: |
+        cd client
+        VERSION=$(grep 'version:' pubspec.yaml | head -1 | sed 's/version: //' | tr -d ' ')
+        echo "version=${VERSION}" >> $GITHUB_OUTPUT
+
+    - name: Create Release
+      id: create_release
+      uses: softprops/action-gh-release@v1
+      with:
+        tag_name: ${{ github.ref_name }}
+        name: Release ${{ github.ref_name }}
+        draft: false
+        prerelease: false
+        files: |
+          client/build/app/outputs/flutter-apk/app-release.apk
+        body: |
+          ## APK Release ${{ github.ref_name }}
+
+          Version: ${{ steps.get_version.outputs.version }}
+
+          ### Installation
+          Download the APK and install on your Android device.
+
+          ### Changes
+          See commit history for details.
+
+    - name: Upload APK as artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: eblan-messenger-apk
+        path: client/build/app/outputs/flutter-apk/app-release.apk
